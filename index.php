@@ -36,10 +36,23 @@ $tabel = $conn->query("SELECT * FROM kecamatan ORDER BY nama");
     .panel { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.08); margin-bottom: 20px; }
     .panel h2 { margin: 0 0 12px; font-size: 17px; color: #1e3a5f; }
     #map { height: 560px; border-radius: 8px; }
-    .toolbar { margin-bottom: 10px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; justify-content: space-between; }
+    .toolbar .btn-group { display: flex; gap: 6px; }
+    .toolbar .search-group { position: relative; display: flex; gap: 6px; }
+    .toolbar input { padding: 6px 12px; border: 1px solid #ccc; border-radius: 6px; width: 220px; font-family: inherit; }
+    .toolbar input:focus { outline: none; border-color: #1e3a5f; }
     .toolbar button { border: 1px solid #1e3a5f; background: #fff; color: #1e3a5f; padding: 6px 12px;
-                      border-radius: 6px; cursor: pointer; margin-right: 6px; }
+                      border-radius: 6px; cursor: pointer; }
+    .toolbar button:hover { background: #f0f6ff; }
     .toolbar button.active { background: #1e3a5f; color: #fff; }
+    .toolbar button.btn-cari { background: #1e3a5f; color: #fff; font-weight: 600; }
+    .toolbar button.btn-cari:hover { background: #132742; }
+    .hasil-pencarian { position: absolute; top: 100%; left: 0; width: 220px; background: #fff; border: 1px solid #ccc; 
+                       border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,.1); z-index: 9999; display: none; 
+                       max-height: 200px; overflow-y: auto; margin-top: 4px; }
+    .hasil-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #eee; }
+    .hasil-item:hover { background: #f0f6ff; }
+    .hasil-item:last-child { border-bottom: none; }
     .legend { background: #fff; padding: 10px 12px; border-radius: 6px; line-height: 20px; font-size: 12px;
               box-shadow: 0 1px 4px rgba(0,0,0,.3); }
     .legend i { width: 14px; height: 14px; float: left; margin-right: 6px; margin-top: 3px; border-radius: 3px; opacity: .85; }
@@ -59,6 +72,13 @@ $tabel = $conn->query("SELECT * FROM kecamatan ORDER BY nama");
     .neg { color: #c0392b; font-weight: bold; }
     .pos { color: #27ae60; }
     footer { text-align: center; font-size: 12px; color: #888; padding: 16px; }
+    .leaflet-control-kompas { 
+        background: white; 
+        border-radius: 50%; 
+        box-shadow: 0 1px 5px rgba(0,0,0,0.4); 
+        line-height: 0;
+        pointer-events: none;
+    }
 </style>
 </head>
 <body>
@@ -98,8 +118,15 @@ $tabel = $conn->query("SELECT * FROM kecamatan ORDER BY nama");
     <div class="panel">
         <h2>Peta Sebaran Penduduk per Kecamatan</h2>
         <div class="toolbar">
-            <button id="btnJumlah" class="active" onclick="gantiMode('jumlah')">Jumlah Penduduk</button>
-            <button id="btnLaju" onclick="gantiMode('laju')">Laju Pertumbuhan</button>
+            <div class="btn-group">
+                <button id="btnJumlah" class="active" onclick="gantiMode('jumlah')">Jumlah Penduduk</button>
+                <button id="btnLaju" onclick="gantiMode('laju')">Laju Pertumbuhan</button>
+            </div>
+            <div class="search-group">
+                <input type="text" id="inputCari" placeholder="Cari kecamatan..." onkeypress="handleEnter(event)">
+                <button class="btn-cari" onclick="cariKecamatan()">Cari</button>
+                <div id="hasilPencarian" class="hasil-pencarian"></div>
+            </div>
         </div>
         <div id="map"></div>
     </div>
@@ -121,7 +148,12 @@ $tabel = $conn->query("SELECT * FROM kecamatan ORDER BY nama");
         <h2>Tabel Data</h2>
         <table>
             <thead>
-                <tr><th>No</th><th>Kecamatan</th><th style="text-align:right">Jumlah Penduduk (jiwa)</th><th style="text-align:right">Laju Pertumbuhan (%)</th></tr>
+                <tr>
+                    <th>No</th>
+                    <th style="cursor:pointer" onclick="sortTable(1, false)">Kecamatan ↕</th>
+                    <th style="cursor:pointer; text-align:right" onclick="sortTable(2, true)">Jumlah Penduduk (jiwa) ↕</th>
+                    <th style="cursor:pointer; text-align:right" onclick="sortTable(3, true)">Laju Pertumbuhan (%) ↕</th>
+                </tr>
             </thead>
             <tbody>
             <?php $no = 1; while ($r = $tabel->fetch_assoc()): ?>
@@ -139,7 +171,10 @@ $tabel = $conn->query("SELECT * FROM kecamatan ORDER BY nama");
     </div>
 </div>
 
-<footer>Data penduduk: BPS Kabupaten Jember, Tabel 3.1.1. Batas kecamatan: batas-administrasi-indonesia (Alf-Anas, update Juni 2023), disederhanakan untuk web.</footer>
+<footer>
+    Data penduduk: BPS Kabupaten Jember, Tabel 3.1.1. Batas kecamatan: batas-administrasi-indonesia (Alf-Anas, update Juni 2023), disederhanakan untuk web.
+    &nbsp;|&nbsp; <a href="admin/login.php" style="color:#aaa; text-decoration:none;">Admin Panel</a>
+</footer>
 
 <script>
 const fmt = n => n.toLocaleString('id-ID');
@@ -220,7 +255,10 @@ function buatLayerBatas(geojson) {
         style: gayaBatas,
         onEachFeature: (feature, layer) => {
             const d = dataByNama[feature.properties.nama];
-            if (d) layer.bindPopup(isiPopup(d));
+            if (d) {
+                layer.bindPopup(isiPopup(d));
+                d.layer = layer; // Simpan referensi layer untuk fitur pencarian
+            }
             layer.on({ mouseover: sorot, mouseout: lepas });
 
             // Label nama di titik yang dijamin berada di dalam poligon
@@ -276,6 +314,80 @@ function gantiMode(m) {
     buatLegenda();
 }
 
+// ---------- Fitur Pencarian ----------
+function handleEnter(e) {
+    if (e.key === 'Enter') cariKecamatan();
+}
+
+function cariKecamatan() {
+    const input = document.getElementById('inputCari').value.trim().toLowerCase();
+    const wadahHasil = document.getElementById('hasilPencarian');
+    
+    if (input === '') {
+        alert('Masukkan nama kecamatan yang ingin dicari.');
+        return;
+    }
+    
+    const hasil = dataKec.filter(d => d.nama.toLowerCase().includes(input));
+    
+    if (hasil.length === 0) {
+        alert('Kecamatan tidak ditemukan.');
+        wadahHasil.style.display = 'none';
+        return;
+    }
+    
+    if (hasil.length === 1) {
+        wadahHasil.style.display = 'none';
+        fokusKecamatan(hasil[0].nama);
+    } else {
+        wadahHasil.innerHTML = '';
+        hasil.forEach(d => {
+            const div = document.createElement('div');
+            div.className = 'hasil-item';
+            div.textContent = d.nama;
+            div.onclick = () => {
+                wadahHasil.style.display = 'none';
+                document.getElementById('inputCari').value = d.nama;
+                fokusKecamatan(d.nama);
+            };
+            wadahHasil.appendChild(div);
+        });
+        wadahHasil.style.display = 'block';
+    }
+}
+
+function fokusKecamatan(nama) {
+    const d = dataByNama[nama];
+    if (d && d.layer) {
+        const layer = d.layer;
+        
+        // Pastikan layerBatas tertampil
+        if (!map.hasLayer(layerBatas)) {
+            map.addLayer(layerBatas);
+        }
+        
+        // Pindah fokus
+        map.fitBounds(layer.getBounds(), { maxZoom: 13, padding: [20, 20] });
+        
+        // Buka popup
+        layer.openPopup();
+        
+        // Sorot gaya poligon
+        sorot({ target: layer });
+        
+        // Sembunyikan hasil dropdown pencarian bila ada
+        document.getElementById('hasilPencarian').style.display = 'none';
+    }
+}
+
+// Menyembunyikan dropdown hasil pencarian jika mengklik tempat lain
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-group')) {
+        const wadahHasil = document.getElementById('hasilPencarian');
+        if (wadahHasil) wadahHasil.style.display = 'none';
+    }
+});
+
 // ---------- Grafik ----------
 function buatGrafik() {
     new Chart(document.getElementById('chartJumlah'), {
@@ -300,6 +412,32 @@ function buatGrafik() {
         options: { indexAxis: 'y', plugins: { legend: { display: false } },
                    scales: { y: { ticks: { autoSkip: false, font: { size: 10 } } } } }
     });
+}
+
+// ---------- Sprint 2: Fitur Sort Tabel ----------
+let sortDirection = 1;
+function sortTable(colIndex, isNumber) {
+    const tbody = document.querySelector('table tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let valA = a.children[colIndex].innerText.replace(/\./g, '').replace(/,/g, '.');
+        let valB = b.children[colIndex].innerText.replace(/\./g, '').replace(/,/g, '.');
+        
+        if (isNumber) {
+            return (parseFloat(valA) - parseFloat(valB)) * sortDirection;
+        }
+        return valA.localeCompare(valB) * sortDirection;
+    });
+    
+    sortDirection *= -1;
+    
+    // Update nomor urut
+    rows.forEach((row, index) => {
+        row.children[0].innerText = index + 1;
+    });
+    
+    tbody.append(...rows);
 }
 
 // ---------- Ambil data MySQL (api.php) + batas wilayah (GeoJSON) ----------
@@ -331,6 +469,29 @@ Promise.all([
 
     info.addTo(map);
     L.control.scale({ imperial: false }).addTo(map);
+    
+    // ---------- Sprint 3: Kompas Arah Mata Angin ----------
+    const kompas = L.control({ position: 'bottomleft' });
+    kompas.onAdd = function () {
+        const div = L.DomUtil.create('div', 'leaflet-control-kompas');
+        div.title = 'Arah Utara';
+        div.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="72" height="72">
+            <circle cx="40" cy="40" r="38" fill="white" stroke="#ccc" stroke-width="1.5"/>
+            <text x="40" y="11"  text-anchor="middle" font-size="10" font-weight="bold" fill="#c0392b">U</text>
+            <text x="40" y="74"  text-anchor="middle" font-size="10" font-weight="bold" fill="#555">S</text>
+            <text x="72" y="44"  text-anchor="middle" font-size="10" font-weight="bold" fill="#555">T</text>
+            <text x="8"  y="44"  text-anchor="middle" font-size="10" font-weight="bold" fill="#555">B</text>
+            <line x1="40" y1="16" x2="40" y2="64" stroke="#ddd" stroke-width="1"/>
+            <line x1="16" y1="40" x2="64" y2="40" stroke="#ddd" stroke-width="1"/>
+            <polygon points="40,15 35.5,40 44.5,40" fill="#c0392b"/>
+            <polygon points="40,65 35.5,40 44.5,40" fill="#333"/>
+            <circle cx="40" cy="40" r="3.5" fill="white" stroke="#888" stroke-width="1.2"/>
+        </svg>`;
+        return div;
+    };
+    kompas.addTo(map);
+
     buatLegenda();
     buatGrafik();
 }).catch(err => alert('Gagal memuat data: ' + err));
