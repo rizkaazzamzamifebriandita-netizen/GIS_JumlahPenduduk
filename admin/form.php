@@ -692,125 +692,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             ?>
-
-
             <?php if ($jumlahTersedia === 0): ?>
-
                 <div class="empty-box">
-
                     ℹ️ Saat ini seluruh kecamatan sudah memiliki
                     data penduduk.
-
                     <br><br>
-
                     Gunakan menu <strong>Edit</strong> untuk
                     memperbarui jumlah penduduk atau laju
                     pertumbuhan.
-
                 </div>
-
             <?php else: ?>
-
                 <div class="info-box">
-
                     Pilih kecamatan yang sudah tersedia pada
                     wilayah peta. Nama kecamatan tidak dapat
                     dibuat secara bebas.
-
                 </div>
-
             <?php endif; ?>
-
-
         <?php endif; ?>
-
-
         <form method="POST" action="">
-
-
             <?php if ($mode === 'Tambah'): ?>
-
-
                 <div class="form-group">
-
                     <label>
                         Kecamatan
                     </label>
-
-
                     <select
                         name="nama"
                         required
                         <?= $jumlahTersedia === 0 ? 'disabled' : '' ?>
                     >
-
                         <option value="">
                             -- Pilih Kecamatan --
                         </option>
-
-
                         <?php foreach ($kecamatanTetap as $namaKec => $koordinat): ?>
-
                             <?php if (!in_array($namaKec, $existingNames) || $namaKec === $data['nama']): ?>
-
                                 <option
                                     value="<?= htmlspecialchars($namaKec) ?>"
                                     <?= $data['nama'] === $namaKec ? 'selected' : '' ?>
                                 >
-
                                     <?= htmlspecialchars($namaKec) ?>
-
                                 </option>
-
                             <?php endif; ?>
-
                         <?php endforeach; ?>
-
                     </select>
-
-
                     <small>
                         Hanya kecamatan yang belum memiliki
                         data yang dapat dipilih.
                     </small>
-
                 </div>
-
-
             <?php else: ?>
-
-
                 <div class="form-group">
-
                     <label>
                         Kecamatan
                     </label>
-
-
                     <input
                         type="text"
                         value="<?= htmlspecialchars($data['nama']) ?>"
                         disabled
                     >
-
-
                     <small>
                         Nama kecamatan tidak dapat diubah.
                     </small>
-
                 </div>
-
-
             <?php endif; ?>
-
-
             <div class="form-group">
-
                 <label>
                     Jumlah Penduduk (jiwa)
                 </label>
-
-
                 <input
                     type="number"
                     name="jumlah"
@@ -819,22 +766,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     value="<?= htmlspecialchars($data['jumlah_penduduk']) ?>"
                     placeholder="contoh: 121482"
                 >
-
-
                 <small>
                     Masukkan jumlah penduduk dalam satuan jiwa.
                 </small>
-
             </div>
-
-
             <div class="form-group">
-
                 <label>
                     Laju Pertumbuhan (% per tahun)
                 </label>
-
-
                 <input
                     type="number"
                     step="0.01"
@@ -843,45 +782,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     value="<?= htmlspecialchars($data['laju_pertumbuhan']) ?>"
                     placeholder="contoh: 0.64"
                 >
-
-
                 <small>
                     Nilai negatif berarti pertumbuhan penduduk menurun.
                     Contoh: -0.42
                 </small>
-
             </div>
-
-
             <button
                 type="submit"
                 class="btn-save"
                 <?= ($mode === 'Tambah' && $jumlahTersedia === 0) ? 'disabled' : '' ?>
             >
-
                 <?= $mode === 'Edit'
                     ? '💾 Simpan Perubahan'
                     : '➕ Tambah Data Penduduk'
                 ?>
-
             </button>
-
-
             <a
                 href="index.php"
                 class="btn-back"
             >
                 Batal & kembali ke dashboard
             </a>
-
-
         </form>
-
     </div>
-
 </div>
-
-
 </body>
-
 </html>
